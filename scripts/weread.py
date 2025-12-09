@@ -64,10 +64,8 @@ def get_bookmark_list(bookId):
     r = session.get(WEREAD_BOOKMARKLIST_URL, params=params)
     if r.ok:
         data = r.json()
-        print(data)
         # 检查是否有错误码
         if data.get("errCode") != 0 and "errCode" in data:
-            print(f"获取书籍 {bookId} 划线失败: {data.get('errMsg')}")
             raise Exception(data.get('errMsg', '登录超时'))
         updated = data.get("updated")
         if updated is None or not isinstance(updated, list):
@@ -211,13 +209,22 @@ def insert_to_notion(bookName, bookId, cover, sort, author, isbn, rating, catego
 
 
 def add_children(id, children):
+    if not children or len(children) == 0:
+        return []
     results = []
     for i in range(0, len(children) // 100 + 1):
+        batch = children[i * 100 : (i + 1) * 100]
+        if not batch:  # 跳过空批次
+            continue
         time.sleep(0.3)
-        response = client.blocks.children.append(
-            block_id=id, children=children[i * 100 : (i + 1) * 100]
-        )
-        results.extend(response.get("results"))
+        try:
+            response = client.blocks.children.append(
+                block_id=id, children=batch
+            )
+            results.extend(response.get("results"))
+        except Exception as e:
+            print(f"添加blocks失败: {e}")
+            return None
     return results if len(results) == len(children) else None
 
 
@@ -453,10 +460,17 @@ if __name__ == "__main__":
     session.get(WEREAD_URL)
     latest_sort = get_sort()
     books = get_notebooklist()
+    
+    success_count = 0
+    fail_count = 0
+    skip_count = 0
+    
     if books != None:
+        print(f"\n开始同步，共 {len(books)} 本书籍，最新排序值: {latest_sort}\n")
         for index, book in enumerate(books):
             sort = book["sort"]
             if sort <= latest_sort:
+                skip_count += 1
                 continue
             book = book.get("book")
             title = book.get("title")
@@ -466,7 +480,7 @@ if __name__ == "__main__":
             categories = book.get("categories")
             if categories != None:
                 categories = [x["title"] for x in categories]
-            print(f"正在同步 {title} ,一共{len(books)}本，当前是第{index+1}本。")
+            print(f"[{index+1}/{len(books)}] 正在同步《{title}》...")
             
             try:
                 check(bookId)
@@ -496,7 +510,14 @@ if __name__ == "__main__":
                 results = add_children(id, children)
                 if len(grandchild) > 0 and results != None:
                     add_grandchild(grandchild, results)
-                print(f"✓ 成功同步《{title}》")
+                print(f"  ✓ 成功")
+                success_count += 1
             except Exception as e:
-                print(f"✗ 同步《{title}》失败: {e}")
+                print(f"  ✗ 失败: {e}")
+                fail_count += 1
                 continue
+        
+        print(f"\n同步完成！")
+        print(f"  成功: {success_count} 本")
+        print(f"  失败: {fail_count} 本")
+        print(f"  跳过: {skip_count} 本")
