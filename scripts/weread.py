@@ -109,7 +109,11 @@ def get_review_list(bookId):
 def check(bookId):
     """检查是否已经插入过 如果已经插入了就删除"""
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
-    response = client.databases.query(**{"database_id": database_id, "filter": filter})
+    response = client.request(
+        path=f"databases/{database_id}/query",
+        method="post",
+        body={"filter": filter}
+    )
     for result in response["results"]:
         try:
             client.blocks.delete(block_id=result["id"])
@@ -222,8 +226,10 @@ def get_sort():
             "direction": "descending",
         }
     ]
-    response = client.databases.query(
-        **{"database_id": database_id, "filter": filter, "sorts": sorts, "page_size": 1}
+    response = client.request(
+        path=f"databases/{database_id}/query",
+        method="post",
+        body={"filter": filter, "sorts": sorts, "page_size": 1}
     )
     if len(response.get("results")) == 1:
         return response.get("results")[0].get("properties").get("Sort").get("number")
