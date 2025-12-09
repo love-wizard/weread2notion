@@ -37,6 +37,10 @@ WEREAD_READ_INFO_URL = "https://weread.qq.com/web/book/readinfo"
 WEREAD_REVIEW_LIST_URL = "https://weread.qq.com/web/review/list"
 WEREAD_BOOK_INFO = "https://weread.qq.com/web/book/info"
 
+# 全局变量
+database_id = None  # 数据库ID，用于创建页面
+data_source_id = None  # 数据源ID，用于查询
+
 
 def parse_cookie_string(cookie_string):
     cookie = SimpleCookie()
@@ -110,7 +114,7 @@ def check(bookId):
     """检查是否已经插入过 如果已经插入了就删除"""
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
     response = client.request(
-        path=f"data_sources/{database_id}/query",
+        path=f"data_sources/{data_source_id}/query",
         method="POST",
         body={"filter": filter}
     )
@@ -227,7 +231,7 @@ def get_sort():
         }
     ]
     response = client.request(
-        path=f"data_sources/{database_id}/query",
+        path=f"data_sources/{data_source_id}/query",
         method="POST",
         body={"filter": filter, "sorts": sorts, "page_size": 1}
     )
@@ -392,17 +396,39 @@ def extract_page_id():
     else:
         raise Exception(f"获取NotionID失败，请检查输入的Url是否正确")
 
+
+def get_data_source_id(database_id):
+    """从数据库ID获取数据源ID"""
+    try:
+        # 尝试获取数据库信息
+        response = client.request(
+            path=f"databases/{database_id}",
+            method="GET"
+        )
+        # 如果数据库有data_sources，获取第一个
+        if "data_sources" in response and len(response["data_sources"]) > 0:
+            return response["data_sources"][0]["id"]
+        # 否则直接使用database_id（向后兼容）
+        return database_id
+    except Exception as e:
+        print(f"获取数据源ID失败，尝试直接使用database_id: {e}")
+        return database_id
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     options = parser.parse_args()
     weread_cookie = get_cookie()
-    database_id = extract_page_id()
     notion_token = os.getenv("NOTION_TOKEN")
     if not notion_token or notion_token.strip() == "" or notion_token == "***":
         raise Exception("没有找到NOTION_TOKEN，请按照文档配置环境变量")
     session = requests.Session()
     session.cookies = parse_cookie_string(weread_cookie)
     client = Client(auth=notion_token, log_level=logging.ERROR)
+    
+    # database_id 用于创建页面，data_source_id 用于查询
+    database_id = extract_page_id()
+    data_source_id = get_data_source_id(database_id)
+    
     session.get(WEREAD_URL)
     latest_sort = get_sort()
     books = get_notebooklist()
