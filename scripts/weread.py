@@ -75,15 +75,29 @@ def get_bookmark_list(bookId):
     """获取我的划线"""
     session.get(WEREAD_URL)
     params = dict(bookId=bookId)
-    r = session.get(WEREAD_BOOKMARKLIST_URL, params=params)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://weread.qq.com/',
+        'Origin': 'https://weread.qq.com',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin'
+    }
+    r = session.get(WEREAD_BOOKMARKLIST_URL, params=params, headers=headers)
     if r.ok:
         data = r.json()
         # 检查是否有错误码
         if data.get("errCode") != 0 and "errCode" in data:
             # 打印详细的错误信息用于调试
             if data.get("errCode") == -2012:
-                print(f"  调试: API返回登录超时，完整响应: {data}")
-                print(f"  调试: 当前Cookie数: {len(session.cookies)}")
+                print(f"  调试: bookmarklist API失败")
+                print(f"  请求URL: {r.url}")
+                print(f"  响应: {data}")
+                cookie_names = [c.name for c in session.cookies]
+                print(f"  Cookie字段: {cookie_names}")
                 sys.stdout.flush()
             raise Exception(data.get('errMsg', '登录超时'))
         updated = data.get("updated")
@@ -100,7 +114,11 @@ def get_bookmark_list(bookId):
 def get_read_info(bookId):
     session.get(WEREAD_URL)
     params = dict(bookId=bookId, readingDetail=1, readingBookIndex=1, finishedDate=1)
-    r = session.get(WEREAD_READ_INFO_URL, params=params)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://weread.qq.com/',
+    }
+    r = session.get(WEREAD_READ_INFO_URL, params=params, headers=headers)
     if r.ok:
         data = r.json()
         if data.get("errCode") != 0 and "errCode" in data:
@@ -113,7 +131,11 @@ def get_bookinfo(bookId):
     """获取书的详情"""
     session.get(WEREAD_URL)
     params = dict(bookId=bookId)
-    r = session.get(WEREAD_BOOK_INFO, params=params)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://weread.qq.com/',
+    }
+    r = session.get(WEREAD_BOOK_INFO, params=params, headers=headers)
     isbn = ""
     if r.ok:
         data = r.json()
@@ -131,7 +153,11 @@ def get_review_list(bookId):
     """获取笔记"""
     session.get(WEREAD_URL)
     params = dict(bookId=bookId, listType=11, mine=1, syncKey=0)
-    r = session.get(WEREAD_REVIEW_LIST_URL, params=params)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://weread.qq.com/',
+    }
+    r = session.get(WEREAD_REVIEW_LIST_URL, params=params, headers=headers)
     data = r.json()
     if data.get("errCode") != 0 and "errCode" in data:
         raise Exception(data.get('errMsg', '登录超时'))
@@ -164,7 +190,12 @@ def get_chapter_info(bookId):
     """获取章节信息"""
     session.get(WEREAD_URL)
     body = {"bookIds": [bookId], "synckeys": [0], "teenmode": 0}
-    r = session.post(WEREAD_CHAPTER_INFO, json=body)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Content-Type': 'application/json',
+        'Referer': 'https://weread.qq.com/',
+    }
+    r = session.post(WEREAD_CHAPTER_INFO, json=body, headers=headers)
     if r.ok:
         data = r.json()
         if data.get("errCode") != 0 and "errCode" in data:
@@ -257,7 +288,11 @@ def add_grandchild(grandchild, results):
 def get_notebooklist():
     """获取笔记本列表"""
     session.get(WEREAD_URL)
-    r = session.get(WEREAD_NOTEBOOKS_URL)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://weread.qq.com/',
+    }
+    r = session.get(WEREAD_NOTEBOOKS_URL, headers=headers)
     if r.ok:
         data = r.json()
         # 检查是否有错误码
@@ -535,7 +570,13 @@ if __name__ == "__main__":
     print(f"主页访问状态: {test_response.status_code}")
     # 显示实际发送的Cookie
     cookie_dict = {cookie.name: cookie.value for cookie in session.cookies}
-    print(f"当前Session中的Cookie: {list(cookie_dict.keys())}")
+    print(f"当前Session中的Cookie字段: {list(cookie_dict.keys())}")
+    
+    # 检查关键Cookie是否存在
+    critical_cookies = ['wr_skey', 'wr_vid']
+    missing_cookies = [c for c in critical_cookies if c not in cookie_dict]
+    if missing_cookies:
+        print(f"⚠️  警告: 缺少关键Cookie字段: {missing_cookies}")
     sys.stdout.flush()
     
     # 测试获取笔记本列表
