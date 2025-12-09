@@ -80,6 +80,11 @@ def get_bookmark_list(bookId):
         data = r.json()
         # 检查是否有错误码
         if data.get("errCode") != 0 and "errCode" in data:
+            # 打印详细的错误信息用于调试
+            if data.get("errCode") == -2012:
+                print(f"  调试: API返回登录超时，完整响应: {data}")
+                print(f"  调试: 当前Cookie数: {len(session.cookies)}")
+                sys.stdout.flush()
             raise Exception(data.get('errMsg', '登录超时'))
         updated = data.get("updated")
         if updated is None or not isinstance(updated, list):
@@ -507,6 +512,14 @@ if __name__ == "__main__":
     sys.stdout.flush()
     session = requests.Session()
     session.cookies = parse_cookie_string(weread_cookie)
+    # 设置必要的请求头，模拟浏览器行为
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://weread.qq.com/',
+        'Origin': 'https://weread.qq.com'
+    })
     client = Client(auth=notion_token, log_level=logging.ERROR)
     
     print("正在获取数据库信息...")
@@ -520,6 +533,7 @@ if __name__ == "__main__":
     # 先访问主页，建立会话
     test_response = session.get(WEREAD_URL)
     print(f"主页访问状态: {test_response.status_code}")
+    print(f"当前Session中的Cookie: {dict(session.cookies)}")
     sys.stdout.flush()
     
     # 测试获取笔记本列表
