@@ -109,7 +109,7 @@ def get_review_list(bookId):
 def check(bookId):
     """检查是否已经插入过 如果已经插入了就删除"""
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
-    response = client.databases.query(database_id=database_id, filter=filter)
+    response = client.databases.query(database_id, filter=filter)
     for result in response["results"]:
         try:
             client.blocks.delete(block_id=result["id"])
@@ -223,7 +223,7 @@ def get_sort():
         }
     ]
     response = client.databases.query(
-        database_id=database_id, filter=filter, sorts=sorts, page_size=1
+        database_id, filter=filter, sorts=sorts, page_size=1
     )
     if len(response.get("results")) == 1:
         return response.get("results")[0].get("properties").get("Sort").get("number")
@@ -297,7 +297,7 @@ def get_children(chapter, summary, bookmark_list):
 def transform_id(book_id):
     id_length = len(book_id)
 
-    if re.match("^\d*$", book_id):
+    if re.match(r"^\d*$", book_id):
         ary = []
         for i in range(0, id_length, 9):
             ary.append(format(int(book_id[i : min(i + 9, id_length)]), "x"))
