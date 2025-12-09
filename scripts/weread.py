@@ -481,6 +481,7 @@ if __name__ == "__main__":
     success_count = 0
     fail_count = 0
     skip_count = 0
+    consecutive_login_failures = 0  # 连续登录失败次数
     
     if books != None:
         print(f"\n开始同步，共 {len(books)} 本书籍，最新排序值: {latest_sort}\n")
@@ -532,10 +533,29 @@ if __name__ == "__main__":
                 print(f"  ✓ 成功")
                 sys.stdout.flush()
                 success_count += 1
+                consecutive_login_failures = 0  # 重置连续失败计数
             except Exception as e:
-                print(f"  ✗ 失败: {e}")
+                error_msg = str(e)
+                print(f"  ✗ 失败: {error_msg}")
                 sys.stdout.flush()
                 fail_count += 1
+                
+                # 检查是否是登录相关错误
+                if "登录超时" in error_msg or "登录失败" in error_msg:
+                    consecutive_login_failures += 1
+                    if consecutive_login_failures == 1:
+                        print(f"  ⚠️  检测到登录问题，Cookie 可能已过期")
+                        sys.stdout.flush()
+                    if consecutive_login_failures >= 3:
+                        print(f"\n❌ 检测到连续 {consecutive_login_failures} 次登录失败")
+                        print("📌 Cookie 已过期，请更新配置：")
+                        print("   1. 更新 WEREAD_COOKIE 环境变量，或")
+                        print("   2. 更新 CookieCloud 配置 (CC_URL, CC_ID, CC_PASSWORD)")
+                        print("停止同步...\n")
+                        sys.stdout.flush()
+                        break
+                else:
+                    consecutive_login_failures = 0  # 非登录错误，重置计数
                 continue
         
         print(f"\n同步完成！")
