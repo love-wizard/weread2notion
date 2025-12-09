@@ -54,6 +54,16 @@ def parse_cookie_string(cookie_string):
     for key, morsel in cookie.items():
         cookies_dict[key] = morsel.value
         cookiejar = cookiejar_from_dict(cookies_dict, cookiejar=None, overwrite=True)
+    
+    if not cookies_dict:
+        print(f"⚠️  警告: Cookie 解析后为空！")
+        print(f"原始 Cookie: {cookie_string[:100]}...")
+        sys.stdout.flush()
+    else:
+        print(f"✓ Cookie 解析成功，包含 {len(cookies_dict)} 个字段")
+        print(f"Cookie 字段: {list(cookies_dict.keys())}")
+        sys.stdout.flush()
+    
     return cookiejar
 
 def refresh_token(exception):
@@ -245,11 +255,23 @@ def get_notebooklist():
     r = session.get(WEREAD_NOTEBOOKS_URL)
     if r.ok:
         data = r.json()
+        # 检查是否有错误码
+        if "errCode" in data and data.get("errCode") != 0:
+            print(f"获取笔记本列表失败: {data}")
+            sys.stdout.flush()
+            return None
         books = data.get("books")
-        books.sort(key=lambda x: x["sort"])
-        return books
+        if books:
+            books.sort(key=lambda x: x["sort"])
+            return books
+        else:
+            print("警告: 返回的书籍列表为空")
+            sys.stdout.flush()
+            return []
     else:
-        print(r.text)
+        print(f"请求失败，状态码: {r.status_code}")
+        print(f"响应内容: {r.text[:500]}")
+        sys.stdout.flush()
     return None
 
 
@@ -493,9 +515,24 @@ if __name__ == "__main__":
     database_id = extract_page_id()
     data_source_id = get_data_source_id(database_id)
     
-    session.get(WEREAD_URL)
+    print("正在验证微信读书 Cookie...")
+    sys.stdout.flush()
+    # 先访问主页，建立会话
+    test_response = session.get(WEREAD_URL)
+    print(f"主页访问状态: {test_response.status_code}")
+    sys.stdout.flush()
+    
+    # 测试获取笔记本列表
+    print("正在获取书籍列表...")
+    sys.stdout.flush()
     latest_sort = get_sort()
     books = get_notebooklist()
+    
+    if books is None:
+        print("\n❌ 无法获取书籍列表，请检查 Cookie 是否有效")
+        print("提示: 请确保 Cookie 包含必要的认证信息")
+        sys.stdout.flush()
+        sys.exit(1)
     
     success_count = 0
     fail_count = 0
