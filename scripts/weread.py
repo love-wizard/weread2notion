@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from notion_client import Client
 import requests
@@ -13,6 +14,9 @@ import hashlib
 from dotenv import load_dotenv
 import os
 from retrying import retry
+
+# 强制刷新输出，确保在GitHub Actions中能看到实时日志
+sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
 from utils import (
     get_callout,
     get_date,
@@ -443,16 +447,29 @@ def get_data_source_id(database_id):
         return database_id
 
 if __name__ == "__main__":
+    print("=" * 50)
+    print("开始运行 WeRead to Notion 同步程序")
+    print("=" * 50)
+    sys.stdout.flush()
+    
     parser = argparse.ArgumentParser()
     options = parser.parse_args()
+    
+    print("正在获取配置...")
+    sys.stdout.flush()
     weread_cookie = get_cookie()
     notion_token = os.getenv("NOTION_TOKEN")
     if not notion_token or notion_token.strip() == "" or notion_token == "***":
         raise Exception("没有找到NOTION_TOKEN，请按照文档配置环境变量")
+    
+    print("正在初始化客户端...")
+    sys.stdout.flush()
     session = requests.Session()
     session.cookies = parse_cookie_string(weread_cookie)
     client = Client(auth=notion_token, log_level=logging.ERROR)
     
+    print("正在获取数据库信息...")
+    sys.stdout.flush()
     # database_id 用于创建页面，data_source_id 用于查询
     database_id = extract_page_id()
     data_source_id = get_data_source_id(database_id)
@@ -467,6 +484,7 @@ if __name__ == "__main__":
     
     if books != None:
         print(f"\n开始同步，共 {len(books)} 本书籍，最新排序值: {latest_sort}\n")
+        sys.stdout.flush()
         for index, book in enumerate(books):
             sort = book["sort"]
             if sort <= latest_sort:
@@ -481,6 +499,7 @@ if __name__ == "__main__":
             if categories != None:
                 categories = [x["title"] for x in categories]
             print(f"[{index+1}/{len(books)}] 正在同步《{title}》...")
+            sys.stdout.flush()
             
             try:
                 check(bookId)
@@ -511,9 +530,11 @@ if __name__ == "__main__":
                 if len(grandchild) > 0 and results != None:
                     add_grandchild(grandchild, results)
                 print(f"  ✓ 成功")
+                sys.stdout.flush()
                 success_count += 1
             except Exception as e:
                 print(f"  ✗ 失败: {e}")
+                sys.stdout.flush()
                 fail_count += 1
                 continue
         
@@ -521,3 +542,4 @@ if __name__ == "__main__":
         print(f"  成功: {success_count} 本")
         print(f"  失败: {fail_count} 本")
         print(f"  跳过: {skip_count} 本")
+        sys.stdout.flush()
