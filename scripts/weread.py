@@ -533,7 +533,9 @@ if __name__ == "__main__":
     # 先访问主页，建立会话
     test_response = session.get(WEREAD_URL)
     print(f"主页访问状态: {test_response.status_code}")
-    print(f"当前Session中的Cookie: {dict(session.cookies)}")
+    # 显示实际发送的Cookie
+    cookie_dict = {cookie.name: cookie.value for cookie in session.cookies}
+    print(f"当前Session中的Cookie: {list(cookie_dict.keys())}")
     sys.stdout.flush()
     
     # 测试获取笔记本列表
