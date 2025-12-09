@@ -585,6 +585,43 @@ if __name__ == "__main__":
     latest_sort = get_sort()
     books = get_notebooklist()
     
+    # 测试第一本书的API调用
+    if books and len(books) > 0:
+        test_book_id = books[0].get("book", {}).get("bookId")
+        if test_book_id:
+            print(f"\n测试API调用（使用第一本书 bookId: {test_book_id}）...")
+            sys.stdout.flush()
+            try:
+                print("  - 测试 get_bookinfo...")
+                sys.stdout.flush()
+                test_isbn, test_rating = get_bookinfo(test_book_id)
+                print(f"    ✓ 成功 (ISBN: {test_isbn}, Rating: {test_rating})")
+                sys.stdout.flush()
+            except Exception as e:
+                print(f"    ✗ 失败: {e}")
+                sys.stdout.flush()
+            
+            try:
+                print("  - 测试 get_read_info...")
+                sys.stdout.flush()
+                test_read_info = get_read_info(test_book_id)
+                print(f"    ✓ 成功")
+                sys.stdout.flush()
+            except Exception as e:
+                print(f"    ✗ 失败: {e}")
+                sys.stdout.flush()
+            
+            try:
+                print("  - 测试 get_bookmark_list...")
+                sys.stdout.flush()
+                test_bookmarks = get_bookmark_list(test_book_id)
+                print(f"    ✓ 成功 (获取到 {len(test_bookmarks)} 条划线)")
+                sys.stdout.flush()
+            except Exception as e:
+                print(f"    ✗ 失败: {e}")
+                sys.stdout.flush()
+            print()
+    
     if books is None:
         print("\n❌ 无法获取书籍列表，请检查 Cookie 是否有效")
         print("提示: 请确保 Cookie 包含必要的认证信息")
@@ -617,12 +654,22 @@ if __name__ == "__main__":
             
             try:
                 check(bookId)
+                print(f"  - 获取书籍信息...")
+                sys.stdout.flush()
                 isbn, rating = get_bookinfo(bookId)
+                print(f"  - 创建Notion页面...")
+                sys.stdout.flush()
                 id = insert_to_notion(
                     title, bookId, cover, sort, author, isbn, rating, categories
                 )
+                print(f"  - 获取章节信息...")
+                sys.stdout.flush()
                 chapter = get_chapter_info(bookId)
+                print(f"  - 获取划线标注...")
+                sys.stdout.flush()
                 bookmark_list = get_bookmark_list(bookId)
+                print(f"  - 获取笔记...")
+                sys.stdout.flush()
                 summary, reviews = get_review_list(bookId)
                 bookmark_list.extend(reviews)
                 bookmark_list = sorted(
