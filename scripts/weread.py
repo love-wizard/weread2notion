@@ -467,30 +467,36 @@ if __name__ == "__main__":
             if categories != None:
                 categories = [x["title"] for x in categories]
             print(f"正在同步 {title} ,一共{len(books)}本，当前是第{index+1}本。")
-            check(bookId)
-            isbn, rating = get_bookinfo(bookId)
-            id = insert_to_notion(
-                title, bookId, cover, sort, author, isbn, rating, categories
-            )
-            chapter = get_chapter_info(bookId)
-            bookmark_list = get_bookmark_list(bookId)
-            summary, reviews = get_review_list(bookId)
-            bookmark_list.extend(reviews)
-            bookmark_list = sorted(
-                bookmark_list,
-                key=lambda x: (
-                    x.get("chapterUid", 1),
-                    (
-                        0
-                        if (
-                            x.get("range", "") == ""
-                            or x.get("range").split("-")[0] == ""
-                        )
-                        else int(x.get("range").split("-")[0])
+            
+            try:
+                check(bookId)
+                isbn, rating = get_bookinfo(bookId)
+                id = insert_to_notion(
+                    title, bookId, cover, sort, author, isbn, rating, categories
+                )
+                chapter = get_chapter_info(bookId)
+                bookmark_list = get_bookmark_list(bookId)
+                summary, reviews = get_review_list(bookId)
+                bookmark_list.extend(reviews)
+                bookmark_list = sorted(
+                    bookmark_list,
+                    key=lambda x: (
+                        x.get("chapterUid", 1),
+                        (
+                            0
+                            if (
+                                x.get("range", "") == ""
+                                or x.get("range").split("-")[0] == ""
+                            )
+                            else int(x.get("range").split("-")[0])
+                        ),
                     ),
-                ),
-            )
-            children, grandchild = get_children(chapter, summary, bookmark_list)
-            results = add_children(id, children)
-            if len(grandchild) > 0 and results != None:
-                add_grandchild(grandchild, results)
+                )
+                children, grandchild = get_children(chapter, summary, bookmark_list)
+                results = add_children(id, children)
+                if len(grandchild) > 0 and results != None:
+                    add_grandchild(grandchild, results)
+                print(f"✓ 成功同步《{title}》")
+            except Exception as e:
+                print(f"✗ 同步《{title}》失败: {e}")
+                continue
