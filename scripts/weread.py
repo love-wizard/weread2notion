@@ -110,7 +110,7 @@ def check(bookId):
     """检查是否已经插入过 如果已经插入了就删除"""
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
     response = client.request(
-        path=f"databases/{database_id}/query",
+        path=f"data_sources/{database_id}/query",
         method="POST",
         body={"filter": filter}
     )
@@ -227,7 +227,7 @@ def get_sort():
         }
     ]
     response = client.request(
-        path=f"databases/{database_id}/query",
+        path=f"data_sources/{database_id}/query",
         method="POST",
         body={"filter": filter, "sorts": sorts, "page_size": 1}
     )
