@@ -47,13 +47,17 @@ data_source_id = None  # 数据源ID，用于查询
 
 
 def parse_cookie_string(cookie_string):
+    """解析Cookie字符串并返回cookiejar
+    注意：这里只解析初始Cookie，服务器动态设置的Cookie（如wr_skey）会自动更新
+    """
     cookie = SimpleCookie()
     cookie.load(cookie_string)
     cookies_dict = {}
-    cookiejar = None
     for key, morsel in cookie.items():
         cookies_dict[key] = morsel.value
-        cookiejar = cookiejar_from_dict(cookies_dict, cookiejar=None, overwrite=True)
+    
+    # 使用cookiejar_from_dict创建cookiejar，这样可以让requests自动管理Cookie更新
+    cookiejar = cookiejar_from_dict(cookies_dict, cookiejar=None, overwrite=True)
     
     if not cookies_dict:
         print(f"⚠️  警告: Cookie 解析后为空！")
@@ -110,42 +114,63 @@ def get_bookmark_list(bookId):
         return updated
     return []
 
-@retry(stop_max_attempt_number=3, wait_fixed=5000,retry_on_exception=refresh_token)
 def get_read_info(bookId):
-    session.get(WEREAD_URL)
-    params = dict(bookId=bookId, readingDetail=1, readingBookIndex=1, finishedDate=1)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://weread.qq.com/',
-    }
-    r = session.get(WEREAD_READ_INFO_URL, params=params, headers=headers)
-    if r.ok:
-        data = r.json()
-        if data.get("errCode") != 0 and "errCode" in data:
-            raise Exception(data.get('errMsg', '登录超时'))
-        return data
-    return None
+    """获取阅读信息 - 如果失败返回None而不中断流程"""
+    try:
+        session.get(WEREAD_URL)
+        params = dict(bookId=bookId, readingDetail=1, readingBookIndex=1, finishedDate=1)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://weread.qq.com/',
+        }
+        r = session.get(WEREAD_READ_INFO_URL, params=params, headers=headers)
+        if r.ok:
+            data = r.json()
+            # 如果返回登录超时错误（-2012），返回None
+            if data.get("errCode") == -2012:
+                return None
+            if data.get("errCode") != 0 and "errCode" in data:
+                print(f"  [DEBUG] get_read_info 其他错误: errCode={data.get('errCode')}, errMsg={data.get('errMsg')}")
+                sys.stdout.flush()
+                return None
+            return data
+        return None
+    except Exception as e:
+        print(f"  [提示] 获取阅读信息异常: {e}")
+        sys.stdout.flush()
+        return None
 
-@retry(stop_max_attempt_number=3, wait_fixed=5000,retry_on_exception=refresh_token)
 def get_bookinfo(bookId):
     """获取书的详情"""
-    session.get(WEREAD_URL)
-    params = dict(bookId=bookId)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://weread.qq.com/',
-    }
-    r = session.get(WEREAD_BOOK_INFO, params=params, headers=headers)
-    isbn = ""
-    if r.ok:
-        data = r.json()
-        if data.get("errCode") != 0 and "errCode" in data:
-            raise Exception(data.get('errMsg', '登录超时'))
-        isbn = data.get("isbn","")
-        newRating = data.get("newRating", 0) / 1000
-        return (isbn, newRating)
-    else:
-        print(f"get {bookId} book info failed")
+    try:
+        session.get(WEREAD_URL)
+        params = dict(bookId=bookId)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://weread.qq.com/',
+        }
+        r = session.get(WEREAD_BOOK_INFO, params=params, headers=headers)
+        isbn = ""
+        if r.ok:
+            data = r.json()
+            # 如果返回登录超时错误（-2012），返回默认值而不是抛出异常
+            if data.get("errCode") == -2012:
+                print(f"  [提示] 获取书籍详情失败（权限不足），使用默认值")
+                sys.stdout.flush()
+                return ("", 0)
+            if data.get("errCode") != 0 and "errCode" in data:
+                print(f"  [DEBUG] get_bookinfo 其他错误: errCode={data.get('errCode')}, errMsg={data.get('errMsg')}")
+                sys.stdout.flush()
+                return ("", 0)
+            isbn = data.get("isbn","")
+            newRating = data.get("newRating", 0) / 1000
+            return (isbn, newRating)
+        else:
+            print(f"  [提示] 获取书籍详情HTTP失败, status={r.status_code}")
+            return ("", 0)
+    except Exception as e:
+        print(f"  [提示] 获取书籍详情异常: {e}")
+        sys.stdout.flush()
         return ("", 0)
 
 @retry(stop_max_attempt_number=3, wait_fixed=5000,retry_on_exception=refresh_token)
@@ -159,6 +184,9 @@ def get_review_list(bookId):
     }
     r = session.get(WEREAD_REVIEW_LIST_URL, params=params, headers=headers)
     data = r.json()
+    # 如果是登录超时，返回空数据而不是抛出异常
+    if data.get("errCode") == -2012:
+        return [], []
     if data.get("errCode") != 0 and "errCode" in data:
         raise Exception(data.get('errMsg', '登录超时'))
     reviews = data.get("reviews")
@@ -198,6 +226,9 @@ def get_chapter_info(bookId):
     r = session.post(WEREAD_CHAPTER_INFO, json=body, headers=headers)
     if r.ok:
         data = r.json()
+        # 如果是登录超时，返回None
+        if data.get("errCode") == -2012:
+            return None
         if data.get("errCode") != 0 and "errCode" in data:
             raise Exception(data.get('errMsg', '登录超时'))
         if (
@@ -631,10 +662,10 @@ if __name__ == "__main__":
     success_count = 0
     fail_count = 0
     skip_count = 0
-    consecutive_login_failures = 0  # 连续登录失败次数
     
     if books != None:
-        print(f"\n开始同步，共 {len(books)} 本书籍，最新排序值: {latest_sort}\n")
+        print(f"\n开始同步，共 {len(books)} 本书籍，最新排序值: {latest_sort}")
+        print("注意: 部分API可能因权限限制无法获取数据（ISBN、评分、阅读状态等），这不影响划线同步\n")
         sys.stdout.flush()
         for index, book in enumerate(books):
             sort = book["sort"]
@@ -654,22 +685,12 @@ if __name__ == "__main__":
             
             try:
                 check(bookId)
-                print(f"  - 获取书籍信息...")
-                sys.stdout.flush()
                 isbn, rating = get_bookinfo(bookId)
-                print(f"  - 创建Notion页面...")
-                sys.stdout.flush()
                 id = insert_to_notion(
                     title, bookId, cover, sort, author, isbn, rating, categories
                 )
-                print(f"  - 获取章节信息...")
-                sys.stdout.flush()
                 chapter = get_chapter_info(bookId)
-                print(f"  - 获取划线标注...")
-                sys.stdout.flush()
                 bookmark_list = get_bookmark_list(bookId)
-                print(f"  - 获取笔记...")
-                sys.stdout.flush()
                 summary, reviews = get_review_list(bookId)
                 bookmark_list.extend(reviews)
                 bookmark_list = sorted(
@@ -693,29 +714,11 @@ if __name__ == "__main__":
                 print(f"  ✓ 成功")
                 sys.stdout.flush()
                 success_count += 1
-                consecutive_login_failures = 0  # 重置连续失败计数
             except Exception as e:
                 error_msg = str(e)
                 print(f"  ✗ 失败: {error_msg}")
                 sys.stdout.flush()
                 fail_count += 1
-                
-                # 检查是否是登录相关错误
-                if "登录超时" in error_msg or "登录失败" in error_msg:
-                    consecutive_login_failures += 1
-                    if consecutive_login_failures == 1:
-                        print(f"  ⚠️  检测到登录问题，Cookie 可能已过期")
-                        sys.stdout.flush()
-                    if consecutive_login_failures >= 3:
-                        print(f"\n❌ 检测到连续 {consecutive_login_failures} 次登录失败")
-                        print("📌 Cookie 已过期，请更新配置：")
-                        print("   1. 更新 WEREAD_COOKIE 环境变量，或")
-                        print("   2. 更新 CookieCloud 配置 (CC_URL, CC_ID, CC_PASSWORD)")
-                        print("停止同步...\n")
-                        sys.stdout.flush()
-                        break
-                else:
-                    consecutive_login_failures = 0  # 非登录错误，重置计数
                 continue
         
         print(f"\n同步完成！")
