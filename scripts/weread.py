@@ -404,10 +404,29 @@ def get_cookie():
     id = os.getenv("CC_ID")
     password = os.getenv("CC_PASSWORD")
     cookie = os.getenv("WEREAD_COOKIE")
+    
+    # 尝试从 CookieCloud 获取
     if url and id and password:
-        cookie = try_get_cloud_cookie(url, id, password)
+        print("尝试从 CookieCloud 获取 Cookie...")
+        sys.stdout.flush()
+        cloud_cookie = try_get_cloud_cookie(url, id, password)
+        if cloud_cookie:
+            print("✓ 成功从 CookieCloud 获取 Cookie")
+            sys.stdout.flush()
+            cookie = cloud_cookie
+        else:
+            print("✗ CookieCloud 获取失败，使用环境变量中的 Cookie")
+            sys.stdout.flush()
+    
     if not cookie or not cookie.strip():
         raise Exception("没有找到cookie，请按照文档填写cookie")
+    
+    # 显示 Cookie 的前几个字符用于验证（不显示完整 Cookie）
+    cookie_preview = cookie[:50] + "..." if len(cookie) > 50 else cookie
+    print(f"Cookie 预览: {cookie_preview}")
+    print(f"Cookie 长度: {len(cookie)} 字符")
+    sys.stdout.flush()
+    
     return cookie
     
 
