@@ -111,7 +111,7 @@ def check(bookId):
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
     response = client.request(
         path=f"databases/{database_id}/query",
-        method="post",
+        method="POST",
         body={"filter": filter}
     )
     for result in response["results"]:
@@ -228,7 +228,7 @@ def get_sort():
     ]
     response = client.request(
         path=f"databases/{database_id}/query",
-        method="post",
+        method="POST",
         body={"filter": filter, "sorts": sorts, "page_size": 1}
     )
     if len(response.get("results")) == 1:
@@ -398,6 +398,8 @@ if __name__ == "__main__":
     weread_cookie = get_cookie()
     database_id = extract_page_id()
     notion_token = os.getenv("NOTION_TOKEN")
+    if not notion_token or notion_token.strip() == "" or notion_token == "***":
+        raise Exception("没有找到NOTION_TOKEN，请按照文档配置环境变量")
     session = requests.Session()
     session.cookies = parse_cookie_string(weread_cookie)
     client = Client(auth=notion_token, log_level=logging.ERROR)
