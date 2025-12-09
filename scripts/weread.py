@@ -63,14 +63,21 @@ def get_bookmark_list(bookId):
     params = dict(bookId=bookId)
     r = session.get(WEREAD_BOOKMARKLIST_URL, params=params)
     if r.ok:
-        print(r.json())
-        updated = r.json().get("updated")
+        data = r.json()
+        print(data)
+        # 检查是否有错误码
+        if data.get("errCode") != 0 and "errCode" in data:
+            print(f"获取书籍 {bookId} 划线失败: {data.get('errMsg')}")
+            raise Exception(data.get('errMsg', '登录超时'))
+        updated = data.get("updated")
+        if updated is None or not isinstance(updated, list):
+            return []
         updated = sorted(
             updated,
-            key=lambda x: (x.get("chapterUid", 1), int(x.get("range").split("-")[0])),
+            key=lambda x: (x.get("chapterUid", 1), int(x.get("range", "0-0").split("-")[0])),
         )
-        return r.json()["updated"]
-    return None
+        return updated
+    return []
 
 @retry(stop_max_attempt_number=3, wait_fixed=5000,retry_on_exception=refresh_token)
 def get_read_info(bookId):
@@ -78,7 +85,10 @@ def get_read_info(bookId):
     params = dict(bookId=bookId, readingDetail=1, readingBookIndex=1, finishedDate=1)
     r = session.get(WEREAD_READ_INFO_URL, params=params)
     if r.ok:
-        return r.json()
+        data = r.json()
+        if data.get("errCode") != 0 and "errCode" in data:
+            raise Exception(data.get('errMsg', '登录超时'))
+        return data
     return None
 
 @retry(stop_max_attempt_number=3, wait_fixed=5000,retry_on_exception=refresh_token)
@@ -90,6 +100,8 @@ def get_bookinfo(bookId):
     isbn = ""
     if r.ok:
         data = r.json()
+        if data.get("errCode") != 0 and "errCode" in data:
+            raise Exception(data.get('errMsg', '登录超时'))
         isbn = data.get("isbn","")
         newRating = data.get("newRating", 0) / 1000
         return (isbn, newRating)
@@ -103,7 +115,12 @@ def get_review_list(bookId):
     session.get(WEREAD_URL)
     params = dict(bookId=bookId, listType=11, mine=1, syncKey=0)
     r = session.get(WEREAD_REVIEW_LIST_URL, params=params)
-    reviews = r.json().get("reviews")
+    data = r.json()
+    if data.get("errCode") != 0 and "errCode" in data:
+        raise Exception(data.get('errMsg', '登录超时'))
+    reviews = data.get("reviews")
+    if not reviews:
+        return [], []
     summary = list(filter(lambda x: x.get("review").get("type") == 4, reviews))
     reviews = list(filter(lambda x: x.get("review").get("type") == 1, reviews))
     reviews = list(map(lambda x: x.get("review"), reviews))
@@ -131,14 +148,17 @@ def get_chapter_info(bookId):
     session.get(WEREAD_URL)
     body = {"bookIds": [bookId], "synckeys": [0], "teenmode": 0}
     r = session.post(WEREAD_CHAPTER_INFO, json=body)
-    if (
-        r.ok
-        and "data" in r.json()
-        and len(r.json()["data"]) == 1
-        and "updated" in r.json()["data"][0]
-    ):
-        update = r.json()["data"][0]["updated"]
-        return {item["chapterUid"]: item for item in update}
+    if r.ok:
+        data = r.json()
+        if data.get("errCode") != 0 and "errCode" in data:
+            raise Exception(data.get('errMsg', '登录超时'))
+        if (
+            "data" in data
+            and len(data["data"]) == 1
+            and "updated" in data["data"][0]
+        ):
+            update = data["data"][0]["updated"]
+            return {item["chapterUid"]: item for item in update}
     return None
 
 
