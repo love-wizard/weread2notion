@@ -710,15 +710,13 @@ if __name__ == "__main__":
             if categories != None:
                 categories = [x["title"] for x in categories]
             
-            # 检查书籍是否存在
-            exists = check_exists(bookId)
-            
-            # 如果Sort值小于等于latest_sort且书籍已存在，则跳过
-            if sort <= latest_sort and exists:
+            # 快速跳过：如果Sort值小于等于latest_sort，大概率已存在，直接跳过
+            # 只有Sort值大于latest_sort的新书才会同步
+            if sort <= latest_sort:
                 skip_count += 1
                 continue
             
-            print(f"[{index+1}/{len(books)}] 正在同步《{title}》{'(不存在，强制同步)' if not exists else ''}...")
+            print(f"[{index+1}/{len(books)}] 正在同步《{title}》...")
             sys.stdout.flush()
             
             try:
