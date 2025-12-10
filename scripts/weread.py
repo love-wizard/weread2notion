@@ -710,7 +710,15 @@ if __name__ == "__main__":
             if categories != None:
                 categories = [x["title"] for x in categories]
             
-            print(f"[{index+1}/{len(books)}] 正在同步《{title}》...")
+            # 检查书籍是否存在
+            exists = check_exists(bookId)
+            
+            # 如果Sort值小于等于latest_sort且书籍已存在，则跳过
+            if sort <= latest_sort and exists:
+                skip_count += 1
+                continue
+            
+            print(f"[{index+1}/{len(books)}] 正在同步《{title}》{'(不存在，强制同步)' if not exists else ''}...")
             sys.stdout.flush()
             
             try:
@@ -726,6 +734,8 @@ if __name__ == "__main__":
                 
                 # 添加详细调试信息
                 print(f"  - 划线数: {len(bookmark_list)}, 笔记数: {len(reviews)}, 点评数: {len(summary)}")
+                if len(bookmark_list) == 0 and len(reviews) > 0:
+                    print(f"  ⚠️  警告: 有笔记但没有划线，这不正常！bookId={bookId}")
                 sys.stdout.flush()
                 
                 bookmark_list.extend(reviews)
