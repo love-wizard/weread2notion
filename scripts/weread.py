@@ -105,6 +105,20 @@ def get_bookmark_list(bookId):
                 sys.stdout.flush()
             raise Exception(data.get('errMsg', '登录超时'))
         updated = data.get("updated")
+        
+        # 添加调试信息
+        if updated is None:
+            print(f"  [DEBUG] bookmarklist API返回updated=None, bookId={bookId}")
+            print(f"  [DEBUG] 完整响应: {data}")
+            sys.stdout.flush()
+        elif not isinstance(updated, list):
+            print(f"  [DEBUG] bookmarklist API返回updated类型错误: {type(updated)}, bookId={bookId}")
+            sys.stdout.flush()
+        elif len(updated) == 0:
+            print(f"  [DEBUG] bookmarklist API返回空列表, bookId={bookId}")
+            print(f"  [DEBUG] 响应keys: {list(data.keys())}")
+            sys.stdout.flush()
+        
         if updated is None or not isinstance(updated, list):
             return []
         updated = sorted(
@@ -186,11 +200,16 @@ def get_review_list(bookId):
     data = r.json()
     # 如果是登录超时，返回空数据而不是抛出异常
     if data.get("errCode") == -2012:
+        print(f"  [DEBUG] review_list API登录超时, bookId={bookId}")
+        sys.stdout.flush()
         return [], []
     if data.get("errCode") != 0 and "errCode" in data:
         raise Exception(data.get('errMsg', '登录超时'))
     reviews = data.get("reviews")
     if not reviews:
+        print(f"  [DEBUG] review_list API返回空reviews, bookId={bookId}")
+        print(f"  [DEBUG] 响应keys: {list(data.keys())}")
+        sys.stdout.flush()
         return [], []
     summary = list(filter(lambda x: x.get("review").get("type") == 4, reviews))
     reviews = list(filter(lambda x: x.get("review").get("type") == 1, reviews))
@@ -199,8 +218,18 @@ def get_review_list(bookId):
     return summary, reviews
 
 
-def check(bookId):
-    """检查是否已经插入过 如果已经插入了就删除"""
+def check_exists(bookId):
+    """检查书籍是否已存在，不删除"""
+    filter = {"property": "BookId", "rich_text": {"equals": bookId}}
+    response = client.request(
+        path=f"data_sources/{data_source_id}/query",
+        method="POST",
+        body={"filter": filter}
+    )
+    return len(response["results"]) > 0
+
+def delete_book(bookId):
+    """删除已存在的书籍"""
     filter = {"property": "BookId", "rich_text": {"equals": bookId}}
     response = client.request(
         path=f"data_sources/{data_source_id}/query",
@@ -672,9 +701,6 @@ if __name__ == "__main__":
         sys.stdout.flush()
         for index, book in enumerate(books):
             sort = book["sort"]
-            if sort <= latest_sort:
-                skip_count += 1
-                continue
             book = book.get("book")
             title = book.get("title")
             cover = book.get("cover").replace("/s_", "/t7_")
@@ -683,11 +709,13 @@ if __name__ == "__main__":
             categories = book.get("categories")
             if categories != None:
                 categories = [x["title"] for x in categories]
+            
             print(f"[{index+1}/{len(books)}] 正在同步《{title}》...")
             sys.stdout.flush()
             
             try:
-                check(bookId)
+                # 删除已存在的书籍（如果有）
+                delete_book(bookId)
                 isbn, rating = get_bookinfo(bookId)
                 id = insert_to_notion(
                     title, bookId, cover, sort, author, isbn, rating, categories
@@ -695,7 +723,17 @@ if __name__ == "__main__":
                 chapter = get_chapter_info(bookId)
                 bookmark_list = get_bookmark_list(bookId)
                 summary, reviews = get_review_list(bookId)
+                
+                # 添加详细调试信息
+                print(f"  - 划线数: {len(bookmark_list)}, 笔记数: {len(reviews)}, 点评数: {len(summary)}")
+                sys.stdout.flush()
+                
                 bookmark_list.extend(reviews)
+                
+                # 添加调试信息
+                print(f"  - 总计 {len(bookmark_list)} 条内容")
+                sys.stdout.flush()
+                
                 bookmark_list = sorted(
                     bookmark_list,
                     key=lambda x: (
@@ -711,8 +749,14 @@ if __name__ == "__main__":
                     ),
                 )
                 children, grandchild = get_children(chapter, summary, bookmark_list)
+                print(f"  - 生成了 {len(children)} 个内容块")
+                sys.stdout.flush()
+                
                 results = add_children(id, children)
-                if len(grandchild) > 0 and results != None:
+                if results is None:
+                    print(f"  ⚠️  添加内容块时出现问题")
+                    sys.stdout.flush()
+                elif len(grandchild) > 0 and results != None:
                     add_grandchild(grandchild, results)
                 
                 print(f"  ✓ 成功")
